@@ -1,0 +1,40 @@
+name: Chép nhân ShardX mới
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"     # 6 giờ / lần
+  workflow_dispatch:            # bấm "Run workflow" ở tab Actions để chạy ngay
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mirror
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install "httpx==0.28.1"
+      - name: Tìm nhân mới, chép và đăng
+        run: python mirror.py --publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SDK_PIN: "2.1.7"          # bản shardx dytool đang ghim (pyproject.toml của dytool)
+      # GitHub tắt lịch chạy của kho công khai không có hoạt động 60 ngày -> mỗi tháng ghi 1 dòng để lịch luôn bật
+      - name: Giữ lịch chạy
+        run: |
+          date -u +%Y-%m > last-check.txt
+          if ! git diff --quiet -- last-check.txt 2>/dev/null || ! git ls-files --error-unmatch last-check.txt >/dev/null 2>&1; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add last-check.txt
+            git commit -m "Giữ lịch chạy $(date -u +%Y-%m)"
+            git push
+          fi
